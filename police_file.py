@@ -7,7 +7,7 @@ import requests
 import datetime
 import requests
 import sys
-
+import os
 
 def main():
     reload(sys)
@@ -88,22 +88,22 @@ def getFNames():
     ]
     curMonth = months[now.month - 1]
     start_fnames = [
-                "2009June.txt",
-                "2009July.txt",
-                "2009August.txt",
-                "2009September.txt",
-                "2009October.txt",
-                "2009November.txt",
-                "2009December.txt"
+                "2009June.csv",
+                "2009July.csv",
+                "2009August.csv",
+                "2009September.csv",
+                "2009October.csv",
+                "2009November.csv",
+                "2009December.csv"
                 ]
 
     for yr in range(2010, curYear):
         for mo in months:
-            start_fnames.append("%d%s.txt" % (yr, mo))
+            start_fnames.append("%d%s.csv" % (yr, mo))
     for m in range(0, now.month):
         yr = curYear
         mo = months[m]
-        start_fnames.append("%d%s.txt" % (yr, mo))
+        start_fnames.append("%d%s.csv" % (yr, mo))
         
     return start_fnames
 def getFile(fileName):
@@ -113,7 +113,7 @@ def getFile(fileName):
 def getData(url):
     print "Processing %s" % url
     page = requests.get(url)
-    tree = html.fromstring(page.content.replace('<span>', '').replace('<p>', '').replace('<br>', ''))
+    tree = html.fromstring(page.content.replace('<span>', '').replace('<p>', '').replace('<br>', '').replace(',', ''))
     return tree
     
 def parseFile(tree, writeFileName):
@@ -125,9 +125,13 @@ def parseFile(tree, writeFileName):
                     'Disposition        '
     ,'', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '']; 
     
-    outputFolder = 'output/'
+    outputFolder = 'output_csv/'
     skippedFolder = 'skipped/'
-    
+    if not os.path.exists(outputFolder):
+        os.makedirs(outputFolder)
+    if not os.path.exists(outputFolder + skippedFolder):
+        os.makedirs(outputFolder + skippedFolder)
+        
     outFile = open(outputFolder + writeFileName, "wb")
     outFileSkipped = open(outputFolder + skippedFolder + writeFileName, "wb")
     recordedRows = 0
@@ -141,10 +145,10 @@ def parseFile(tree, writeFileName):
             for j in range(len(td)):
                 g = td[j].strip()
                 h = " ".join(g.split())
-                outStr = "%s: %s" % (colNames[j], h)
+                outStr = "%s," % h
                 #print outStr
                 outFile.write(outStr)
-                outFile.write("\n")
+                #outFile.write("\n")
             outFile.write("\n")
             recordedRows = recordedRows + 1
         else:
@@ -152,10 +156,11 @@ def parseFile(tree, writeFileName):
             for j in range(len(td)):
                 g = td[j].strip()
                 h = " ".join(g.split())
-                outStr = "%s: %s" % (colNames[j], h)
+                #outStr = "%s: %s" % (colNames[j], h)
+                outStr = "%s," % h
                 #print outStr
                 outFileSkipped.write(outStr)
-                outFileSkipped.write("\n")
+                #outFileSkipped.write("\n")
             outFileSkipped.write("\n")
             skippedRows = skippedRows + 1
             #print "Malformed row: %d in %s" % (i, writeFileName)
