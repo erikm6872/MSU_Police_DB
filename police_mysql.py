@@ -173,7 +173,7 @@ def parseFile(tree, writeFileName, cursor, tableName):
     #Folder names for output files
     outputFolder = 'output_SQL/'
     skippedFolder = 'skipped/'
-    
+    #Create folders if they don't already exist
     if not os.path.exists(outputFolder):
         os.makedirs(outputFolder)
     if not os.path.exists(outputFolder + skippedFolder):
