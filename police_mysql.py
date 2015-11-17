@@ -8,16 +8,9 @@ import datetime
 import requests
 import sys
 import mysql.connector
+import os
 
 def main():
-    
-    #Make sure the files are encoded in UTF-8
-    reload(sys)
-    sys.setdefaultencoding('utf8')
-    
-    now = datetime.datetime.now()
-    
-    tableName = "reports"   #MySQL table to insert into
     
     #MySQL settings
     mysqlconfig = {
@@ -27,6 +20,16 @@ def main():
                     'database': 'police',
                     'raise_on_warnings': False,
     }
+    tableName = "reports"   #MySQL table to insert into
+    
+    
+    
+    #Make sure the files are encoded in UTF-8
+    reload(sys)
+    sys.setdefaultencoding('utf8')
+    
+    now = datetime.datetime.now()
+    
     cnx = mysql.connector.connect(**mysqlconfig)
     cursor = cnx.cursor()
     
@@ -170,6 +173,11 @@ def parseFile(tree, writeFileName, cursor, tableName):
     #Folder names for output files
     outputFolder = 'output_SQL/'
     skippedFolder = 'skipped/'
+    
+    if not os.path.exists(outputFolder):
+        os.makedirs(outputFolder)
+    if not os.path.exists(outputFolder + skippedFolder):
+        os.makedirs(outputFolder + skippedFolder)
     
     #Create output files
     outFile = open(outputFolder + writeFileName, "wb")
