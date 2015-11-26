@@ -1,0 +1,933 @@
+/* CSCI 440 Database
+ * Project:  Clery Database
+ * @author Matt Gannon
+ */
+package parser;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.regex.Pattern;
+import java.util.regex.Matcher;
+import java.util.stream.Stream;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.io.File;
+ 
+
+// Table for Category
+class Category
+{
+    int CategoryID;
+    String CategoryName;
+    String CategoryDescription;
+}
+
+// Table for Crimes
+class Crimes
+{
+    int CrimeID;
+    String CName;
+    String Description;
+    int CategoryID;
+}
+
+// Table for CleryLocations
+class CleryLocations
+{
+    int CleryLocationID;
+    String CleryLocation;
+}
+
+// Table for Locations
+class Locations
+{
+    int LocationID;
+    int CleryLocationsID;
+}
+
+// Table for StreetAddress
+class StreetAddress
+{
+    int LocationID;
+    String Address;
+}
+
+// Table for CampusLocation
+class CampusLocation
+{
+    int LocationID;
+    String CampusLocationName;
+}
+
+// Table for Outcomes
+class Outcomes
+{
+    int OutcomeID;
+    String OutcomeType;
+}
+
+// Table for Disposition
+class Disposition
+{
+    int DispositionID;
+    String Description;
+    String Arrests;
+    String Referrals;
+    int OutcomeID;
+}
+
+// Table for Case
+class Case
+{
+    String CaseNumber;
+    int DispositionID;
+    String OcurredStartTime;
+    String OcurredEndTime;
+    String ReportDateTime;
+    String IncidentDescription;
+    String HateCrime;
+}
+
+// Table for M:N mapping
+class Crime_Case_Map
+{
+    int CrimeID;
+    String CaseNumber;
+}
+
+// Table for M:N mapping
+class Case_Location_Map
+{
+    String CaseNumber;
+    int LocationID;
+}
+
+// Initial tables created for parsing the CSV tables from 
+// Python script.  The other classes were created after this one.
+class Pcase
+{
+    String caseNumber;
+    String reportTime;
+    String startTime;
+    String endTime;
+    String times;
+    String fullDescription;
+    String iDescription;
+    String crimes;
+    String[] crimesList;
+    String location;
+    String cLocation = "";
+    String address;
+    String campus;   
+    String disposition;
+    String dDescription;
+    String dArrest;
+    String dReferral;
+    String outcome;
+    boolean toss = false;    
+}
+
+
+// Project to Parse the cvs files
+public class Parser {
+ 
+    // This takes the 4 digit time as an input and place
+    // a : every two characters so that the hours and minutes  
+    // are understood when imported into mysql.
+    static String cutHours(String times)
+    {
+        String newTimes= "";
+        StringBuilder str = new StringBuilder(times);
+        int idx = str.length() - 2;
+
+        while (idx > 0)
+        {
+            str.insert(idx, ":");
+            idx = idx - 2;
+        }
+        newTimes = newTimes + str.toString();
+        return newTimes;  
+    }
+    
+    // This takes the date and removes the / and rearranges
+    // the numbers into YYYY-MM-DD because mySQL ccouldn't 
+    // understand d/m/y when imported.
+    static String dateReverser(String newDate)
+    { 
+        // Remove the forward slashes23
+        String[] time = newDate.split("/"); 
+        // Array the size of time to hold the sections as they are
+        // rearranged.
+        String[] Days = new String[time.length];
+        String[] Yhours;
+        String hours = "";
+        int tSize = time.length-1;
+        
+        //Remove starting and ending blankspace
+        Days[tSize] = time[tSize].trim();
+        
+        // Change date format date and add dashes
+        if (time[tSize].contains(" "))
+        {
+            Yhours = Days[tSize].split("\\s+");    
+            Days[0] = Yhours[0]+"-";
+            hours = Yhours[1];
+        } else{
+            Days[0] = time[2]+"-";
+        }    
+        Days[1] = time[0]+"-";
+        Days[2] = time[1];
+
+        // Re-assemble the date
+        String otherDate = "";
+        for (int s = 0; s < Days.length; s++)
+        {        
+            otherDate = otherDate + Days[s];
+        }
+        
+        // If the date contains hours and minutes it sends
+        // it to be formatted
+        if (hours.length()>0)
+        {
+            String newHours = cutHours(hours);        
+            otherDate = otherDate + " "+ newHours ;
+        }  
+        // Return acceptably formatted date
+        return otherDate;
+    }
+    
+    // There was an incredible amount of difference of the
+    // input format for the incident times.  It could contain
+    // any combination of dates and/or times.
+    // This checks for the most common date and time formats 
+    // and marks others as unusable.
+    static Pcase timesTester (Pcase test)
+    {
+        // Parse by spaces
+        String[] tokens = test.times.split("\\s+");
+        String[] time;
+        String testTime = "";
+        
+        // Uses 4 most common formats 
+        switch(tokens.length)
+        {
+            // Possibly a single date, so it is converted 
+            // to start and end time.
+            case 1:  
+                time = tokens[0].split("/");   
+                if(time.length == 3)
+                {
+                    test.startTime = test.times;
+                    test.endTime = test.times;
+                }else{ 
+                    test.toss = true;
+                }
+                break;
+              
+            // Possibly 2 dates or date and time
+            case 2: 
+                time = tokens[0].split("/"); 
+                if ((time.length == 3)) 
+                {
+                    test.startTime = test.times;
+                    test.endTime = test.times;            
+                }else if( time.length == 5)
+                {
+                    test.startTime = tokens[0];
+                    test.endTime = tokens[1];
+                }else{ 
+                    test.toss = true;
+                }
+                break;
+
+            // Possibile:  Date time Date or Date Date Time   
+            case 3:
+                if ((tokens[0].split("/").length == 3 ) && 
+                        (tokens[1].split("/").length == 3))
+                {
+                    test.startTime = tokens[0];
+                    test.endTime = tokens[1] + " " + tokens[2];
+                
+                }else if ((tokens[0].split("/").length == 3) &&
+                    (tokens[2].split("/").length == 3))
+                {
+                    test.startTime = tokens[0] + " "+ tokens[1];
+                    test.endTime = tokens[2];
+                }else {
+                    test.toss= true;
+                }
+                break;
+                
+            // Possible: date time date time
+            case 4: 
+                if ((tokens[0].split("/").length ==3)&&(tokens[2].split("/").length ==3))
+                {
+                    test.startTime = tokens[0] +" "+tokens[1];
+                    test.endTime = tokens[2] + " "+tokens[3];
+                }else {
+                    test.toss = true;
+                }
+                break;
+            
+            // Mark all other malformed times
+            default: 
+                test.toss = true;
+                break;         
+        }
+        return test;
+    }
+
+    /**
+     * @param args the command line arguments
+     */
+    public static void main(String[] args) throws Exception 
+    {
+        // Create the Crime categories
+        // Descriptions can be added here
+        List<Category> CategoryList = new ArrayList<>();        
+        for(int c = 1; c < 16; c++)
+        {
+            Category tempC = new Category();
+            String catName = "";
+            String catDesc = "";
+            switch(c)
+            {
+                case 1:  catName = "Criminal Mischief/Vandalism";
+                    break;
+                case 2:  catName = "Thefts";
+                    break;                    
+                case 3:  catName = "Arson";
+                    break;
+                case 4:  catName = "Stalking";
+                    break;
+                case 5:  catName = "Assault";
+                    break;
+                case 6:  catName = "Harassment";
+                    break;
+                case 7:  catName = "911 Hang Up/Misdial/Open Line";
+                    break;
+                case 8:  catName = "Noise Complaint";
+                    break;            
+                case 9:  catName = "Identity Theft";
+                    break;
+                case 10: catName = "Alcohol/Drugs";
+                    break;
+                case 11: catName = "Fraud";
+                    break;
+                case 12: catName = "Warrant";
+                    break;
+                case 13: catName = "Homicide";
+                    break;
+                case 14: catName = "Other";
+                    break;
+                case 15: catName = "Vehicular";
+                    break;
+                default:
+                    break;
+            }
+            tempC.CategoryID = c;
+            tempC.CategoryName = catName;
+            tempC.CategoryDescription = catDesc;
+            CategoryList.add(tempC);    
+        }
+        
+        // Create the CleryLocations Table
+        List<CleryLocations> CleryLocationsList = new ArrayList<>();              
+        CleryLocations temp16 = new CleryLocations();
+        temp16.CleryLocation = "On Campus";
+        temp16.CleryLocationID = 1;
+        CleryLocationsList.add(temp16);
+        
+        CleryLocations temp17 = new CleryLocations();
+        temp17.CleryLocation = "Off Campus";
+        temp17.CleryLocationID = 2;
+        CleryLocationsList.add(temp17);
+        
+        CleryLocations temp18 = new CleryLocations();
+        temp18.CleryLocation = "Public Property";
+        temp18.CleryLocationID = 3;
+        CleryLocationsList.add(temp18);
+        
+        // Create the Outcomes Table
+        List<Outcomes> OutcomesList= new ArrayList<>();        
+        Outcomes temp19 = new Outcomes();
+        temp19.OutcomeType = "Open";
+        temp19.OutcomeID = 1;
+        OutcomesList.add(temp19);        
+
+        Outcomes temp20 = new Outcomes();
+        temp20.OutcomeType = "Pending/NA";
+        temp20.OutcomeID = 2;
+        OutcomesList.add(temp20);
+        
+        Outcomes temp21 = new Outcomes();
+        temp21.OutcomeType = "Closed";
+        temp21.OutcomeID = 3;
+        OutcomesList.add(temp21); 
+        
+        // Lists for storing tables         
+        List<Crimes> CrimesList= new ArrayList<>();        
+        List<Locations> LocationsList= new ArrayList<>();        
+        List<StreetAddress> StreetAddressList= new ArrayList<>();
+        List<CampusLocation> CampusLocationList= new ArrayList<>();          
+        List<Disposition> DispositionList= new ArrayList<>();       
+        List<Pcase> Plist= new ArrayList<>();
+        List<Case> CaseList= new ArrayList<>();
+        List<Pcase> badPlist = new ArrayList<>();       
+        List<Crime_Case_Map> Crime_Case_MapList = new ArrayList<>();
+        List<Case_Location_Map> Case_Location_MapList = new ArrayList<>();
+        
+        // Keep track of the ID's for table
+        int crimeCounter = 1;
+        int locationCounter = 1;
+        int dispositionCounter = 1;
+        
+        // Open the directory containing monthly csv files.
+        // Go through all the files in the directory.
+        File dir = new File("D:/test/");
+        for (File file : dir.listFiles())
+        {
+            // Open file and read in
+            Path p1 = file.toPath();
+            Stream<String> lines = Files.lines(p1);
+            Object[] things = lines.toArray();       
+            String sentences;
+            
+            // Parse line by line
+            for (int a = 0; a < things.length; a++)
+            {
+                sentences = things[a].toString();        
+                List<String> items = Arrays.asList(sentences.split("\\s*,\\s*"));
+                if (items.size() == 6)
+                {
+                    // Possible multiple cases per report
+                    List<String> caseslist = Arrays.asList(items.get(0).split("\\s+"));                    
+                    if (caseslist.size() > 1 )
+                    {
+                        for (int h = 0; h < caseslist.size(); h++)
+                        {
+                            for (int i = 0; i < items.size(); i++)
+                            {
+                                // Parse each report into temporary cases
+                                Pcase newPcase = new Pcase();
+                                newPcase.caseNumber = caseslist.get(h).replaceAll("-", "");
+                                i++;
+                                newPcase.reportTime = items.get(i++);
+                                newPcase.times = items.get(i++).replaceAll("-", " ");
+                                // Check the times for formatting
+                                newPcase = timesTester(newPcase);                               
+                                newPcase.fullDescription =items.get(i++).replaceAll("\"", "");
+                                newPcase.fullDescription = newPcase.fullDescription.replaceAll("\'", "");
+                                newPcase.location = items.get(i++).toUpperCase().replaceAll("\'", "");
+                                newPcase.disposition = items.get(i++).replaceAll("\"", "");
+                                newPcase.disposition = newPcase.disposition.replaceAll("\'", "");
+                                // Check names for primary key conflicts
+                                for (Pcase p : Plist)
+                                {
+                                    if ((p.caseNumber.equals(newPcase.caseNumber)) )
+                                    {   
+                                        newPcase.toss = true;
+                                    }                           
+                                }
+                                if(!newPcase.toss)
+                                {
+                                    Plist.add(newPcase);
+                                }else {
+                                    // Create a list for all the malformed
+                                    // cases to input manually if needed
+                                    badPlist.add(newPcase);
+                                }                                    
+                            }
+                        }                     
+                    }else
+                    {
+                        // Parse single report into temporary case
+                        for (int i = 0; i < items.size(); i++)
+                        {
+                            Pcase newPcase = new Pcase();
+                            newPcase.toss = false;
+                            newPcase.caseNumber = items.get(i++).replaceAll("-", "");
+                            // Check names for primary key conflicts
+                            for (Pcase p : Plist)
+                            {
+                                if ((p.caseNumber.equals(newPcase.caseNumber)) )
+                                {
+                                    newPcase.toss = true;
+                                }
+                            }
+                            newPcase.reportTime = items.get(i++);
+                            newPcase.times = items.get(i++).replaceAll("-", " ");
+                            // Check the times for formatting
+                            newPcase = timesTester(newPcase);
+                            newPcase.fullDescription =items.get(i++).replaceAll("\"", "");
+                            newPcase.fullDescription = newPcase.fullDescription.replaceAll("\'", "");
+                            newPcase.location = items.get(i++).toUpperCase().replaceAll("\'", "");
+                            newPcase.disposition = items.get(i++).replaceAll("\"", "");
+                            newPcase.disposition = newPcase.disposition.replaceAll("\'", "");
+                            if(!newPcase.toss)
+                            {
+                                Plist.add(newPcase);
+                            }else{
+                                // Create a list for all the malformed
+                                // cases to input manually if needed                                
+                                badPlist.add(newPcase);
+                            }
+                        }
+                    }
+                } 
+            }
+        }
+        // Go through the new case list and resort them into 
+        // tables to insert into the database.
+        for (Pcase pc : Plist )
+        {
+            Case newCase = new Case();           
+            newCase.CaseNumber = pc.caseNumber;                    
+            String tester = pc.reportTime;
+            // Rearrange the date formats
+            tester = dateReverser(tester);
+            newCase.ReportDateTime = tester;
+            newCase.OcurredStartTime = dateReverser(pc.startTime);
+            newCase.OcurredEndTime = dateReverser(pc.endTime);
+            // Check for bad times
+            if ((!newCase.ReportDateTime.contains("null")) &&
+                (!newCase.OcurredEndTime.contains("null") && 
+                (!newCase.OcurredStartTime.contains("null"))))
+            {
+                // Split the crimes from the description
+                String[] tokens1 = pc.fullDescription.split("-");           
+                pc.crimes = tokens1[0];
+                // Parse out multiple crimes 
+                pc.crimesList = pc.crimes.split("/");            
+                for (int b = 0; b < pc.crimesList.length; b++)
+                {
+                    Crimes newCrime = new Crimes();
+                    Crime_Case_Map newCCmap = new Crime_Case_Map();               
+                    newCrime.CName = pc.crimesList[b].toUpperCase();
+                    newCrime.CName = newCrime.CName.trim();
+                    boolean found = false;
+                    if(!CrimesList.isEmpty())
+                    {
+                        // Check crimes currently on the list
+                        for (Crimes testCrimes : CrimesList)
+                        {
+                            if (testCrimes.CName.equals(newCrime.CName))
+                            {
+                                newCrime.CategoryID = testCrimes.CategoryID;
+                                newCrime.CrimeID = testCrimes.CrimeID;
+                                newCrime.Description = testCrimes.Description;
+                                found = true;    
+                            }                    
+                        }
+                    }                       
+                    if (!found)
+                    {
+                        // Add crimes to the list
+                        newCrime.Description = "";
+                        newCrime.CrimeID = crimeCounter;
+                        crimeCounter++;
+                        // Increment crimecounter to set id
+                        newCrime.CategoryID = 14;
+                        CrimesList.add(newCrime);
+                    }
+                    // Map M:N releationships
+                    newCCmap.CrimeID = newCrime.CrimeID;
+                    newCCmap.CaseNumber = newCase.CaseNumber;
+                    Crime_Case_MapList.add(newCCmap);                
+                }
+                // Trim and clean descriptions
+                newCase.IncidentDescription = tokens1[1].trim();
+                newCase.IncidentDescription = newCase.IncidentDescription.replace("\"", "");
+                Locations newLocations = new Locations();
+                Case_Location_Map CLmap = new  Case_Location_Map();
+                // Remove all periods
+                pc.location = pc.location.replaceAll("\\.", "");
+                String regex = "(.)*(\\d)(.)*";      
+                Pattern pattern = Pattern.compile(regex);
+                Matcher matcher = pattern.matcher(pc.location);
+                // Check for a number to distinguish street addresses
+                boolean isMatched = matcher.matches();
+                if (isMatched) 
+                { 
+                    StreetAddress newSA = new StreetAddress();
+                    newSA.Address = pc.location;
+                    // Go through location list and compare
+                    // Add if not available
+                    // Increment locationid if not in list and add it                
+                    boolean found = false;                
+                    if (StreetAddressList != null && (!StreetAddressList.isEmpty()))
+                    {
+                        for (StreetAddress testAddress : StreetAddressList)
+                        {
+                            if (testAddress.Address.equals(newSA.Address))
+                            {
+                                newSA.LocationID = testAddress.LocationID;
+                                found = true;
+                            }    
+                        }
+                    }
+                    if (!found)
+                    {
+                        newSA.LocationID = locationCounter;
+                        newLocations.LocationID = newSA.LocationID;
+                        locationCounter++;
+                        if(StreetAddressList != null)
+                        {
+                            StreetAddressList.add(newSA);
+                        }
+                        // Set Clery Location
+                        newLocations.CleryLocationsID = 2;
+                        if(LocationsList != null)
+                        {
+                            LocationsList.add(newLocations);
+                        }
+                    }              
+                    CLmap.CaseNumber = newCase.CaseNumber;
+                    CLmap.LocationID = newSA.LocationID;
+                    Case_Location_MapList.add(CLmap);
+                }else 
+                {
+                    CampusLocation newCN = new CampusLocation();
+                    //go through location list and compare
+                    //add if not available
+                    //increment locationid if not in list and add it
+                    newCN.CampusLocationName = pc.location;
+                    boolean found = false;
+                    if ((CampusLocationList != null) && (!CampusLocationList.isEmpty()))
+                    {
+                        for (CampusLocation testCampus : CampusLocationList)
+                        {
+                            if (testCampus.CampusLocationName.equals(newCN.CampusLocationName))
+                            {
+                                newCN.LocationID = testCampus.LocationID;
+                                found = true;
+                            }                   
+                        }
+                    }                
+                    if (!found)
+                    {
+                        newCN.LocationID = locationCounter;
+                        newLocations.LocationID = newCN.LocationID;
+                        locationCounter++;
+                        if (CampusLocationList != null)
+                        {
+                            CampusLocationList.add(newCN);
+                        }
+                        // Set Clery Location
+                        newLocations.CleryLocationsID = 1;
+                        if (LocationsList != null)
+                        {
+                            LocationsList.add(newLocations);
+                        }
+                    }
+                    // Map M:N relationships
+                    CLmap.CaseNumber = newCase.CaseNumber;
+                    CLmap.LocationID = newCN.LocationID;
+                    Case_Location_MapList.add(CLmap);                       
+                }
+                Disposition newDip = new Disposition();
+                newDip.Description = pc.disposition.replaceAll("\"", "");
+                // Search for open
+                if (newDip.Description.contains("open"))
+                {
+                    newDip.OutcomeID = 1;
+                }else if (newDip.Description.contains("closed"))
+                {
+                    newDip.OutcomeID = 3;
+                }else {
+                    newDip.OutcomeID = 2;
+                } 
+                // Search for the word arrest and mark it
+                if (newDip.Description.contains("arrest"))
+                {
+                    newDip.Arrests = "y";
+                }else {
+                    newDip.Arrests = "n";
+                }
+                // Search for referrals
+                if (newDip.Description.contains("refer"))
+                {
+                    newDip.Referrals = "y";
+                } else {
+                    newDip.Referrals = "n";
+                }
+                // The disposition
+                newDip.DispositionID = dispositionCounter;
+                dispositionCounter++;
+                DispositionList.add(newDip);
+                newCase.DispositionID = newDip.DispositionID;
+                // Check for Hate crimes
+                if (newCase.IncidentDescription.contains("hate") || 
+                        newCase.IncidentDescription.contains("Hate") || 
+                        newDip.Description.contains("Hate") || 
+                        newDip.Description.contains("hate"))
+                {
+                    newCase.HateCrime = "y";
+                }else {
+                    newCase.HateCrime = "n";
+                }
+                CaseList.add(newCase);
+            }
+        }
+        
+        // Create sql table for Category
+        System.out.println("SET FOREIGN_KEY_CHECKS = 0;");       
+        System.out.println("CREATE TABLE IF NOT EXISTS `gannon`.`CATEGORY` (\n" +
+            "`CategoryID` INT NOT NULL AUTO_INCREMENT,\n" +
+            "`CategoryName` VARCHAR(30) NOT NULL,\n" +
+            "`CategoryDescription` VARCHAR(80) NULL,\n" +
+            "PRIMARY KEY (`CategoryID`))\n" +
+            "COLLATE = utf8_general_ci;");
+        
+        // Populate Category table
+        System.out.println("INSERT INTO CATEGORY VALUES");        
+        for (Category testCategory : CategoryList)
+        {
+            System.out.printf("(\""+testCategory.CategoryID + "\"" +", ");
+            System.out.printf("\""+testCategory.CategoryName + "\"" +", ");
+            System.out.println("\""+testCategory.CategoryDescription + "\")" +", ");
+        }  
+        System.out.println("SET FOREIGN_KEY_CHECKS = 1;");
+ 
+        // Create sql table for Crimes 
+        System.out.println("SET FOREIGN_KEY_CHECKS = 0;");
+        System.out.println("CREATE TABLE IF NOT EXISTS `gannon`.`CRIMES` (\n" +
+            "`CrimeID` INT NOT NULL AUTO_INCREMENT,\n" +
+            "`CName` VARCHAR(30) NOT NULL,\n" +
+            "`CDescription` LONGTEXT NULL,\n" +
+            "`CategoryID` INT NOT NULL,\n" +
+            "PRIMARY KEY (`CrimeID`),\n" +
+            "CONSTRAINT `FK_CRIMES_CATEGORY`\n" +
+            "FOREIGN KEY (`CategoryID`)\n" +
+            "REFERENCES `gannon`.`CATEGORY` (`CategoryID`)\n" +
+            "ON DELETE NO ACTION\n" +
+            "ON UPDATE NO ACTION)\n" +
+            "COLLATE = utf8_general_ci;");
+        
+        // Populate Crimes table
+        System.out.println("INSERT INTO CRIMES VALUES");          
+        for (Crimes t : CrimesList)
+        {
+            System.out.printf("(\""+t.CrimeID + "\"" +", ");
+            System.out.printf("\""+t.CName + "\"" +", ");
+            System.out.printf("\""+t.Description + "\"" +", ");
+            System.out.println("\""+t.CategoryID + "\")" +", ");
+        }
+        System.out.println("SET FOREIGN_KEY_CHECKS = 1;");
+        
+        // Create sql table for clery locations
+        System.out.println("SET FOREIGN_KEY_CHECKS = 0;");        
+        System.out.println("CREATE TABLE IF NOT EXISTS `gannon`.`CLERY_LOCATIONS` (\n" +
+            "`CleryLocationID` INT NOT NULL AUTO_INCREMENT,\n" +
+            "`CleryLocation` VARCHAR(15) NOT NULL,\n" +
+            "PRIMARY KEY (`CleryLocationID`))\n" +
+            "COLLATE = utf8_general_ci;");
+        
+        // Populate clery locations
+        System.out.println("INSERT INTO CLERY_LOCATIONS VALUES");
+        for (CleryLocations t : CleryLocationsList)
+        {
+            System.out.printf("(\""+t.CleryLocationID + "\"" +", ");
+            System.out.println("\""+t.CleryLocation + "\")" +", ");
+        }
+        System.out.println("SET FOREIGN_KEY_CHECKS = 1;");
+
+        // Create sql table locations
+        System.out.println("SET FOREIGN_KEY_CHECKS = 0;");        
+        System.out.println("CREATE TABLE IF NOT EXISTS `gannon`.`LOCATIONS` (\n" +
+            "`LocationID` INT NOT NULL AUTO_INCREMENT,\n" +
+            "`CleryLocationsID` INT NOT NULL,\n" +
+            "PRIMARY KEY (`LocationID`),\n" +
+            "CONSTRAINT `FK_LOCATIONS_CLERY_LOCATIONS`\n" +
+            "FOREIGN KEY (`LocationID`)\n" +
+            "REFERENCES `gannon`.`CLERY_LOCATIONS` (`CleryLocationID`)\n" +
+            "ON DELETE NO ACTION\n" +
+            "ON UPDATE NO ACTION)\n" +
+            "COLLATE = utf8_general_ci;");
+        
+        // Populate locations table
+        System.out.println("INSERT INTO LOCATIONS VALUES");    
+        for (Locations t : LocationsList)
+        {
+            System.out.printf("(\""+t.LocationID + "\"" +", ");
+            System.out.println("\""+t.CleryLocationsID + "\")" +", ");
+        }
+        System.out.println("SET FOREIGN_KEY_CHECKS = 1;");
+
+        // Create sql table street address
+        System.out.println("SET FOREIGN_KEY_CHECKS = 0;");        
+        System.out.println("CREATE TABLE IF NOT EXISTS `gannon`.`STREET_ADDRESS` (\n" +
+            "`LocationID` INT NOT NULL,\n" +
+            "`Address` VARCHAR(50) NOT NULL,\n" +
+            "PRIMARY KEY (`Address`),\n" +
+            "CONSTRAINT `FK_STREET_ADDRESS_LOCATIONS`\n" +
+            "FOREIGN KEY (`LocationID`)\n" +
+            "REFERENCES `gannon`.`LOCATIONS` (`LocationID`)\n" +
+            "ON DELETE NO ACTION\n" +
+            "ON UPDATE NO ACTION)\n" +
+            "COLLATE = utf8_general_ci;");
+        
+        // Populate street address
+        System.out.println("INSERT INTO STREET_ADDRESS VALUES");   
+        for (StreetAddress t : StreetAddressList)
+        {
+            System.out.printf("(\""+t.LocationID + "\"" +", ");
+            System.out.println("\""+t.Address + "\")" +", ");
+        }
+        System.out.println("SET FOREIGN_KEY_CHECKS = 1;");
+
+        // Create sql table campus location
+        System.out.println("SET FOREIGN_KEY_CHECKS = 0;");        
+        System.out.println("CREATE TABLE IF NOT EXISTS `gannon`.`CAMPUS_LOCATION` (\n" +
+            "`LocationID` INT NOT NULL,\n" +
+            "`CampusLocationName` VARCHAR(50) NOT NULL,\n" +
+            "PRIMARY KEY (`CampusLocationName`),\n" +
+            "CONSTRAINT `FK_CAMPUS_LOCATION_LOCATIONS`\n" +
+            "FOREIGN KEY (`LocationID`)\n" +
+            "REFERENCES `gannon`.`LOCATIONS` (`LocationID`)\n" +
+            "ON DELETE NO ACTION\n" +
+            "ON UPDATE NO ACTION)\n" +
+            "COLLATE = utf8_general_ci;");
+        
+        // Populate campus location
+        System.out.println("INSERT INTO CAMPUS_LOCATION VALUES");  
+        for (CampusLocation t : CampusLocationList)
+        {
+            System.out.printf("(\""+t.LocationID + "\"" +", ");
+            System.out.println("\""+t.CampusLocationName + "\")" +", ");
+        }
+        System.out.println("SET FOREIGN_KEY_CHECKS = 1;");
+
+        // Create table outcomes
+        System.out.println("SET FOREIGN_KEY_CHECKS = 0;");        
+        System.out.println("CREATE TABLE IF NOT EXISTS `gannon`.`OUTCOMES` (\n" +
+            "`OutcomeID` INT NOT NULL,\n" +
+            "`OutcomeType` VARCHAR(10) NOT NULL,\n" +
+            "PRIMARY KEY (`OutcomeID`))\n" +
+            "COLLATE = utf8_general_ci;");
+        
+        // Populate outcomes table
+        System.out.println("INSERT INTO OUTCOMES VALUES");   
+        for (Outcomes t : OutcomesList)
+        {
+            System.out.printf("(\""+t.OutcomeID + "\"" +", ");
+            System.out.println("\""+t.OutcomeType + "\")" +", ");
+        }
+        System.out.println("SET FOREIGN_KEY_CHECKS = 1;");
+        
+        // Create sql table disposition
+        System.out.println("SET FOREIGN_KEY_CHECKS = 0;");        
+        System.out.println("CREATE TABLE IF NOT EXISTS `gannon`.`DISPOSITION` (\n" +
+            "`DispositionID` INT NOT NULL,\n" +
+            "`Description` LONGTEXT NULL,\n" +
+            "`Arrests` VARCHAR(1) NULL,\n" +
+            "`Referrals` VARCHAR(1) NULL,\n" +
+            "`OutcomeID` INT NOT NULL,\n" +
+            "PRIMARY KEY (`DispositionID`),\n" +
+            "CONSTRAINT `FK_DISPOSITION_DISPOSITION`\n" +
+            "FOREIGN KEY (`OutcomeID`)\n" +
+            "REFERENCES `gannon`.`OUTCOMES` (`OutcomeID`)\n" +
+            "ON DELETE NO ACTION\n" +
+            "ON UPDATE NO ACTION)\n" +
+            "COLLATE = utf8_general_ci;");
+        
+        // Populate disposition table
+        System.out.println("INSERT INTO DISPOSITION VALUES");  
+        for (Disposition t : DispositionList)
+        {
+            System.out.printf("(\""+t.DispositionID + "\"" +", ");
+            System.out.printf("\""+t.Description + "\"" +", ");
+            System.out.printf("\""+t.Arrests + "\"" +", ");
+            System.out.printf("\""+t.Referrals + "\"" +", ");
+            System.out.println("\""+t.OutcomeID + "\")" +", ");
+        }
+        System.out.println("SET FOREIGN_KEY_CHECKS = 1;");
+        
+        // Create Cases table
+        System.out.println("SET FOREIGN_KEY_CHECKS = 0;");        
+        System.out.println("CREATE TABLE IF NOT EXISTS `gannon`.`CASES` (\n" +
+            "`CaseNumber` VARCHAR(12) NOT NULL,\n" +
+            "`DispositionID` INT NOT NULL,\n" +
+            "`OccuredStartTime` DATETIME NULL,\n" +
+            "`OccuredEndTime` DATETIME NULL,\n" +
+            "`IncidentDescription` LONGTEXT NULL,\n" +
+            "`ReportDateTime` DATETIME NULL,\n" +
+            "`HateCrime` VARCHAR(1) NULL,\n" +
+            "PRIMARY KEY (`CaseNumber`),\n" +
+            "CONSTRAINT `FK_CASE_DISPOSITION`\n" +
+            "FOREIGN KEY (`DispositionID`)\n" +
+            "REFERENCES `gannon`.`DISPOSITION` (`DispositionID`)\n" +
+            "ON DELETE NO ACTION\n" +
+            "ON UPDATE NO ACTION)\n" +
+            "COLLATE = utf8_general_ci;");
+        
+        // Populate cases
+        System.out.println("INSERT INTO CASES VALUES");   
+        for (Case testCase : CaseList)
+        {
+            System.out.printf("(\""+testCase.CaseNumber + "\"" +", ");
+            System.out.printf("\""+testCase.DispositionID + "\"" +", ");
+            System.out.printf("\""+testCase.OcurredStartTime + "\"" +", ");
+            System.out.printf("\""+testCase.OcurredEndTime + "\"" +", ");
+            System.out.printf("\""+testCase.IncidentDescription + "\"" +", ");
+            System.out.printf("\""+testCase.ReportDateTime + "\"" +", ");
+            System.out.println("\""+testCase.HateCrime + "\")" +", ");
+        }
+        System.out.println("SET FOREIGN_KEY_CHECKS = 1;");
+        
+        // Create crime to case mapping
+        System.out.println("SET FOREIGN_KEY_CHECKS = 0;");                
+        System.out.println("CREATE TABLE IF NOT EXISTS `gannon`.`CRIME_CASE_MAP` (\n" +
+            "`CrimeID` INT NOT NULL,\n" +
+            "`CaseNumber` VARCHAR(12) NOT NULL,\n" +
+            "PRIMARY KEY (`CrimeID`, `CaseNumber`),\n" +
+            "CONSTRAINT `FK_CRIME_CASE_MAP_CRIMES`\n" +
+            "FOREIGN KEY (`CrimeID`)\n" +
+            "REFERENCES `gannon`.`CRIMES` (`CrimeID`)\n" +
+            "ON DELETE NO ACTION\n" +
+            "ON UPDATE NO ACTION,\n" +
+            "CONSTRAINT `FK_CRIME_CASE_MAP_CASES`\n" +
+            "FOREIGN KEY (`CaseNumber`)\n" +
+            "REFERENCES `gannon`.`CASES` (`CaseNumber`)\n" +
+            "ON DELETE NO ACTION\n" +
+            "ON UPDATE NO ACTION)\n" +
+            "COLLATE = utf8_general_ci;");
+        
+        // Populate mapping
+        System.out.println("INSERT INTO CRIME_CASE_MAP VALUES");  
+        for (Crime_Case_Map t : Crime_Case_MapList)
+        {
+            System.out.printf("(\""+t.CrimeID + "\"" +", ");
+            System.out.println("\""+t.CaseNumber + "\")" +", ");
+        }
+        System.out.println("SET FOREIGN_KEY_CHECKS = 1;");
+
+        // Create case to location map table
+        System.out.println("SET FOREIGN_KEY_CHECKS = 0;");                
+        System.out.println("CREATE TABLE IF NOT EXISTS `gannon`.`CASE_LOCATION_MAP` (\n" +
+            "`CaseNumber` VARCHAR(12) NOT NULL,\n" +
+            "`LocationID` INT NOT NULL,\n" +
+            "PRIMARY KEY (`CaseNumber`, `LocationID`),\n" +
+            "CONSTRAINT `FK_CASE_LOCATION_MAP_LOCATIONS`\n" +
+            "FOREIGN KEY (`LocationID`)\n" +
+            "REFERENCES `gannon`.`LOCATIONS` (`LocationID`)\n" +
+            "ON DELETE NO ACTION\n" +
+            "ON UPDATE NO ACTION,\n" +
+            "CONSTRAINT `FK_CASE_LOCATION_MAP_CASES`\n" +
+            "FOREIGN KEY (`CaseNumber`)\n" +
+            "REFERENCES `gannon`.`CASES` (`CaseNumber`)\n" +
+            "ON DELETE NO ACTION\n" +
+            "ON UPDATE NO ACTION)\n" +
+            "COLLATE = utf8_general_ci;");
+        
+        // Populate mapping
+        System.out.println("INSERT INTO CASE_LOCATION_MAP VALUES");  
+        for (Case_Location_Map t : Case_Location_MapList)
+        {
+            System.out.printf("(\""+t.CaseNumber + "\"" +", ");
+            System.out.println("\""+t.LocationID + "\")" +", ");            
+        }
+        System.out.println("SET FOREIGN_KEY_CHECKS = 1;");     
+    }   
+}
