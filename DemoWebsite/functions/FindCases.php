@@ -45,9 +45,9 @@ if (isset($_POST["bycase"])){   //Case Number
 if(isset($_POST["bydateocc"])){
     $dateOccurred = $_POST["dateoccurred"];
     if($multOp)
-		$sql .= " AND OccurredStartTime LIKE \"%{$dateOccurred}%\"";
+		$sql .= " AND OccuredStartTime LIKE \"%{$dateOccurred}%\" OR OccuredEndTime LIKE \"%{$dateOccurred}%\"";
 	else{
-		$sql .= " WHERE OccurredStartTime LIKE \"%{$dateOccurred}%\"";
+		$sql .= " WHERE OccuredStartTime LIKE \"%{$dateOccurred}%\" OR OccuredEndTime LIKE \"%{$dateOccurred}%\"";
 		$multOp = True;
 	}
 }
