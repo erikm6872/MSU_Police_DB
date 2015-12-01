@@ -39,15 +39,26 @@ $multOp = False;   //Set to true if there's more than one search condition
 
 if (isset($_POST["bycase"])){   //Case Number
     $caseNum = $_POST["casenum"];
-    $sql .= " WHERE CaseNumber='{$caseNum}'";
+    $sql .= " WHERE CaseNumber LIKE \"%{$caseNum}%\"";
     $multOp = True;
 }
 if(isset($_POST["bydateocc"])){
     $dateOccurred = $_POST["dateoccurred"];
-    
+    if($multOp)
+		$sql .= " AND OccurredStartTime LIKE \"%{$dateOccurred}%\"";
+	else{
+		$sql .= " WHERE OccurredStartTime LIKE \"%{$dateOccurred}%\"";
+		$multOp = True;
+	}
 }
 if(isset($_POST["bydaterepo"])){
-    $dateOccurred = $_POST["datereported"];
+    $dateReported = $_POST["datereported"];
+	if($multOp)
+		$sql .= " AND ReportDateTime LIKE \"%{$dateReported}%\"";
+	else{
+		$sql .= " WHERE ReportDateTime LIKE \"%{$dateReported}%\"";
+		$multOp = True;
+	}
 }
 if(isset($_POST["byhatecrime"])){
     $hateCrime = $_POST["hatecrime"];
@@ -68,7 +79,7 @@ if(isset($_POST["byclery"])){
         $multOp = True;
     }
 }
-$sql .= " ORDER BY {$orderBy}";
+//$sql .= " ORDER BY {$orderBy}";
 if(isset($_POST["limitrows"])){
     $resultLimit = $_POST["rowlimit"];
     $sql .= " LIMIT {$resultLimit}";
