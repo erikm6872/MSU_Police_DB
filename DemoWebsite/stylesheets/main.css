@@ -1,0 +1,10 @@
+body {
+background-color: AliceBlue;
+background-image:url(../images/header-logo.png);
+background-repeat: no-repeat;
+background-position: top right;
+}
+#container {
+width: 940px;
+margin: 0 auto;
+}
