@@ -107,7 +107,7 @@ else{
     
     //Build the HTML table to show query results
     echo "<table border='1'>";
-    echo "<tr><th>Case #</th><th>Date/Time Reported</th><th>Location</th><th>Crime</th><th>Incident Description</th><th>Disposition Description</th></tr>";
+    echo "<tr><th>Case #</th><th>Date/Time Occurred</th><th>Date/Time Reported</th><th>Location</th><th>Crime</th><th>Incident Description</th><th>Disposition Description</th></tr>";
     
     //Loop over each returned row
     while($row = $result->fetch_assoc()){
@@ -130,6 +130,7 @@ else{
         
         //Insert values into the HTML table
         echo "<tr><td>{$row['CaseNumber']}</td>";
+		echo "<td>{$row['OccuredStartTime']}</td>";
         echo "<td>{$row['ReportDateTime']}</td>";
         echo "<td>{$locationText['loc']}</td>";
         echo "<td>{$crimeText['CName']} ({$crimeText['CategoryName']})</td>";   //({$crimeClassText['CategoryName']})</td>";
