@@ -7,10 +7,15 @@
 <br>
 <?php
 $dbhost = 'localhost';
+$dbuser = 'gannon';
+$dbpass = '3kz8knpmbv';
+$dbname = 'csci440final';
+/*
+$dbhost = 'localhost';
 $dbuser = 'root';
 $dbpass = 'critters';
 $dbname = 'gannon';
-
+*/
 $resultLimit = '500';   //Max number of results to show
 $orderBy = 'ReportDateTime ASC';   //How to order results
 $mysqli = new mysqli($dbhost, $dbuser, $dbpass, $dbname);   //Create new mysqli connection

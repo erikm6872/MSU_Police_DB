@@ -8,9 +8,16 @@
 
 <?php
 $dbhost = 'localhost';
+$dbuser = 'gannon';
+$dbpass = '3kz8knpmbv';
+$dbname = 'csci440final';
+
+/*
+$dbhost = 'localhost';
 $dbuser = 'root';
 $dbpass = 'critters';
 $dbname = 'gannon';
+*/
 /*
 $dbhost = 'csci440.cs.montana.edu';
 $dbuser = 'gannon';
@@ -29,9 +36,15 @@ echo "<br><h1>MSU Police Report Database Demo</h1>";
 function get_location()
 {
 	$dbhost = 'localhost';
+	$dbuser = 'gannon';
+	$dbpass = '3kz8knpmbv';
+	$dbname = 'csci440final';
+	/*
+	$dbhost = 'localhost';
 	$dbuser = 'root';
 	$dbpass = 'critters';
 	$dbname = 'gannon';
+	*/
 	$mysqli = new mysqli($dbhost, $dbuser, $dbpass, $dbname);
 	if ($mysqli->connect_errno) {
     echo "Failed to connect to MySQL: (" . $mysqli->connect_errno . ") " . $mysqli->connect_error;
@@ -54,9 +67,15 @@ function get_location()
 function get_crimes()
 {
 	$dbhost = 'localhost';
+	$dbuser = 'gannon';
+	$dbpass = '3kz8knpmbv';
+	$dbname = 'csci440final';
+	/*
+	$dbhost = 'localhost';
 	$dbuser = 'root';
 	$dbpass = 'critters';
 	$dbname = 'gannon';
+	*/
 	$mysqli = new mysqli($dbhost, $dbuser, $dbpass, $dbname);
 	if ($mysqli->connect_errno) {
     echo "Failed to connect to MySQL: (" . $mysqli->connect_errno . ") " . $mysqli->connect_error;
@@ -117,7 +136,7 @@ function get_day()
 <p>
 <br>
 
-<form action="functions/InsertCases.php" method="post">
+<form action="InsertCases.php" method="post">
     <table border='1'>
         <tr>
             <td align = "left">Case Number</td>
