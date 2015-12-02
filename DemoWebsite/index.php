@@ -33,6 +33,7 @@ $row = $result->fetch_assoc();
 //$row = mysqli_fetch_row($result);
 echo "<h3>{$row['COUNT(*)']} total cases in database</h3>"; 
 ?>
+<a href="../InsertC.php">Add a case to the database</a>
 <h2>Search Reports</h2>
 <p>
 <form action="functions/FindCases.php" method="post">
