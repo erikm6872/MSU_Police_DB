@@ -60,6 +60,15 @@ if(isset($_POST["bydaterepo"])){
 		$multOp = True;
 	}
 }
+if(isset($_POST["bydesc"])){
+    $description = $_POST["description"];
+	if($multOp)
+		$sql .= " AND IncidentDescription LIKE \"%{$description}%\"";
+	else{
+		$sql .= " WHERE IncidentDescription LIKE \"%{$description}%\"";
+		$multOp = True;
+	}
+}
 if(isset($_POST["byhatecrime"])){
     $hateCrime = $_POST["hatecrime"];
     if($multOp)

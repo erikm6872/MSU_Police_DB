@@ -52,6 +52,11 @@ echo "<h3>{$row['COUNT(*)']} total cases in database</h3>";
             <td align = "left">Date Reported</td>
             <td align="left"><input type="text" name="datereported"></td>
         </tr>
+		<tr>
+            <td align="left"><input type="checkbox" name="bydesc" value="ByDesc"></td>
+            <td align = "left">Description</td>
+            <td align="left"><input type="text" name="description"></td>
+        </tr>
         <tr><td align="left"><input type="checkbox" name="byclery" value="ByClery"></td>
             <td align = "left">Location</td>
             <td align="left"><input type="radio" name="clery" value=1>On Campus<br><input type="radio" name="clery" value=2>Off Campus<br><input type="radio" name="clery" value=3>Public Property<br></td>
